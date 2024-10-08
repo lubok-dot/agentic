@@ -1,0 +1,9 @@
+project:
+  output-dir: _docs
+
+website:
+  title: "agentic"
+  site-url: "https://lubok-dot.github.io/agentic"
+  description: "Sample implementations of agentic research papers"
+  repo-branch: main
+  repo-url: "https://github.com/lubok-dot/agentic"
