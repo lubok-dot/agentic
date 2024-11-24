@@ -1,0 +1,8 @@
+website:
+  sidebar:
+    contents:
+      - index.ipynb
+      - 00_critic.ipynb
+      - section: utils
+        contents:
+          - utils/01_data.ipynb

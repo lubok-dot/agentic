@@ -5,4 +5,11 @@ d = { 'settings': { 'branch': 'main',
                 'doc_host': 'https://lubok-dot.github.io',
                 'git_url': 'https://github.com/lubok-dot/agentic',
                 'lib_path': 'agentic'},
-  'syms': {'agentic.core': {'agentic.core.foo': ('core.html#foo', 'agentic/core.py')}}}
+  'syms': { 'agentic.core': {'agentic.core.foo': ('core.html#foo', 'agentic/core.py')},
+            'agentic.critic': { 'agentic.critic.CriticState': ('critic.html#criticstate', 'agentic/critic.py'),
+                                'agentic.critic.assistant': ('critic.html#assistant', 'agentic/critic.py'),
+                                'agentic.critic.tool_call': ('critic.html#tool_call', 'agentic/critic.py'),
+                                'agentic.critic.tools': ('critic.html#tools', 'agentic/critic.py')},
+            'agentic.utils.data': { 'agentic.utils.data.download_ambignq': ('utils/data.html#download_ambignq', 'agentic/utils/data.py'),
+                                    'agentic.utils.data.download_file': ('utils/data.html#download_file', 'agentic/utils/data.py'),
+                                    'agentic.utils.data.download_gsm8k': ('utils/data.html#download_gsm8k', 'agentic/utils/data.py')}}}

@@ -13,6 +13,11 @@ _tmp*
 tmp*
 tags
 *.pkg
+langgraph
+CONVENTIONS.md
+nbs/data
+references.bibtex
+agentic/requirements.txt
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
