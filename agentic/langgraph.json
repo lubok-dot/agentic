@@ -4,7 +4,7 @@
       "simple_graph": "./critic.py:graph"
     },
     "env": "./.env",
-    "python_version": "3.12.6",
+    "python_version": "3.12",
     "dependencies": [
       "."
     ]
