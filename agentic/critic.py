@@ -49,10 +49,8 @@ class CriticState(BaseModel):
 
     p: SystemMessage
     x: HumanMessage
-    y: list[BaseMessage] = Field(
-        description="Chat history of the agent", default=[])
-    c: list[ToolMessage] = Field(
-        description="Latest Tool Messages", default=[])
+    y: list[BaseMessage] = Field(description="Chat history of the agent", default=[])
+    c: list[ToolMessage] = Field(description="Latest Tool Messages", default=[])
     num_iterations: int = Field(
         description="Maximum number a tool can be called", default=0
     )
