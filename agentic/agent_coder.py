@@ -2,8 +2,9 @@
 
 # %% auto 0
 __all__ = ['sample_input', 'coder_prompt', 'response', 'structure_code', 'tester_prompt', 'tester_response', 'structure_test',
-           'LLM', 'coder_template', 'code', 'tester_template', 'tests', 'Coder', 'Tester', 'InputState', 'OverallState',
-           'write_program', 'get_code', 'write_tests', 'executor']
+           'LLM', 'coder_template', 'code', 'tester_template', 'tests', 'workflow', 'memory', 'coder', 'Coder',
+           'Tester', 'InputState', 'OverallState', 'write_program', 'get_code', 'write_tests', 'executor',
+           'correct_implementation']
 
 # %% ../nbs/01_agent_coder.ipynb 2
 from IPython.display import Image, display
@@ -332,3 +333,35 @@ def executor(state: OverallState) -> OverallState:
                     )
                 )
     return {"messages": error_messages}
+
+# %% ../nbs/01_agent_coder.ipynb 18
+def correct_implementation(state: OverallState) -> Literal["Programmer", END]:
+    if 'FAILED TEST' in state['messages'][-1].content:
+        return "Programmer"
+    else:
+        return END
+
+# %% ../nbs/01_agent_coder.ipynb 20
+workflow = StateGraph(OverallState, input=InputState)
+
+# add nodes
+workflow.add_node("Programmer", write_program)
+workflow.add_node("Get Code", get_code)
+workflow.add_node("Tester", write_tests)
+workflow.add_node("Test Code", executor)
+
+# add edges
+workflow.add_edge(START, "Programmer")
+workflow.add_edge(START, "Tester")
+workflow.add_edge("Programmer", "Get Code")
+workflow.add_edge("Get Code", "Test Code")
+workflow.add_edge('Tester', "Test Code")
+workflow.add_conditional_edges("Test Code", correct_implementation)
+
+# compile the graph
+
+memory = MemorySaver()
+coder = workflow.compile(checkpointer=memory)
+
+# View
+display(Image(coder.get_graph(xray=1).draw_mermaid_png()))
