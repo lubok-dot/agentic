@@ -4,17 +4,20 @@
 __all__ = ['sample_input', 'coder_prompt', 'response', 'structure_code', 'tester_prompt', 'tester_response', 'structure_test',
            'LLM', 'coder_template', 'code', 'tester_template', 'tests', 'workflow', 'memory', 'coder', 'Coder',
            'Tester', 'InputState', 'OverallState', 'write_program', 'get_code', 'write_tests', 'executor',
-           'correct_implementation']
+           'correct_implementation', 'run_test']
 
 # %% ../nbs/01_agent_coder.ipynb 2
-from IPython.display import Image, display
 from langgraph.graph import StateGraph, END, START, MessagesState
 from langgraph.checkpoint.memory import MemorySaver
 from langchain_openai import ChatOpenAI
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder, PromptTemplate
+from langchain_core.prompts import (
+    ChatPromptTemplate,
+    MessagesPlaceholder,
+    PromptTemplate,
+)
 from langchain_core.output_parsers.string import StrOutputParser
 from pydantic import BaseModel, Field
-from typing import List, Annotated, Literal
+from typing import List, Annotated, Literal, TypedDict
 from operator import add, attrgetter
 import textwrap
 import os
@@ -261,18 +264,18 @@ tester_template = ChatPromptTemplate(
 tests = create_extractor(LLM, tools=[Tester], tool_choice="Tester")
 
 # %% ../nbs/01_agent_coder.ipynb 14
-class InputState(MessagesState):
+class InputState(TypedDict):
     code_snippet: str
     entry_point: str
 
 
-class OverallState(InputState):
+class OverallState(InputState, MessagesState):
     tester: Tester
     coder: Annotated[List[Coder], add]
 
 # %% ../nbs/01_agent_coder.ipynb 16
 def write_program(state: OverallState) -> OverallState:
-    return {"messages": (coder_template | LLM).invoke(**state)}
+    return {"messages": (coder_template | LLM).invoke(state)}
 
 
 def get_code(state: OverallState) -> OverallState:
@@ -294,21 +297,26 @@ def get_code(state: OverallState) -> OverallState:
         structured = code.invoke(
             structure_code.format(conversation=state["messages"][-1].content)
         )
-    return {"coder": structured["response"][0], "messages": structured["messages"]}
+    return {"coder": structured["responses"]}
 
 
 def write_tests(state: OverallState) -> OverallState:
-    structured_tests = (tester_prompt | LLM | StrOutputParser | PromptTemplate.from_template(
-        structure_test) | tests).invoke(**state)
-    return {"tests": structured_tests["response"][0]}
+    structured_tests = (
+        tester_template
+        | LLM
+        | StrOutputParser()
+        | PromptTemplate.from_template(structure_test)
+        | tests
+    ).invoke(state)
+    return {"tester": structured_tests["responses"][0]}
 
 
 def executor(state: OverallState) -> OverallState:
     error_messages = []
-    for test_type in ["base", "edge", "large"]:
+    for test_type in ["basic", "edge", "large"]:
         for test in attrgetter(test_type)(state["tester"]):
             try:
-                exec(state["coder"].code + test)
+                exec(state["coder"][-1].code + test)
             except Exception as e:
                 error_messages.append(
                     (
@@ -329,14 +337,16 @@ def executor(state: OverallState) -> OverallState:
                             {error}
                             <error>                
                             """
-                        ).strip().format(test=test, error=e),
+                        )
+                        .strip()
+                        .format(test=test, error=e),
                     )
                 )
     return {"messages": error_messages}
 
 # %% ../nbs/01_agent_coder.ipynb 18
 def correct_implementation(state: OverallState) -> Literal["Programmer", END]:
-    if 'FAILED TEST' in state['messages'][-1].content:
+    if "FAILED TEST" in state["messages"][-1].content:
         return "Programmer"
     else:
         return END
@@ -355,7 +365,7 @@ workflow.add_edge(START, "Programmer")
 workflow.add_edge(START, "Tester")
 workflow.add_edge("Programmer", "Get Code")
 workflow.add_edge("Get Code", "Test Code")
-workflow.add_edge('Tester', "Test Code")
+workflow.add_edge("Tester", "Test Code")
 workflow.add_conditional_edges("Test Code", correct_implementation)
 
 # compile the graph
@@ -363,5 +373,18 @@ workflow.add_conditional_edges("Test Code", correct_implementation)
 memory = MemorySaver()
 coder = workflow.compile(checkpointer=memory)
 
-# View
-display(Image(coder.get_graph(xray=1).draw_mermaid_png()))
+# %% ../nbs/01_agent_coder.ipynb 24
+def run_test(problem, thread, graph) -> bool:
+    """
+    Runs the humaneval test of the given instance and reports whether all tests passed or not.
+    """
+    state = graph.get_state(thread)
+    try:
+        exec(
+            state.values["coder"][-1].code
+            + problem["test"]
+            + f"\ncheck({problem['entry_point']})"
+        )
+        return True
+    except:
+        return False

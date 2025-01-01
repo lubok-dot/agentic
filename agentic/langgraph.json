@@ -2,7 +2,7 @@
     "dockerfile_lines": [],
     "graphs": {
       "critic": "./critic.py:critic",
-      "agent_coder": "./agent_coder.py:agent_coder"
+      "agent_coder": "./agent_coder.py:coder"
     },
     "env": "./.env",
     "python_version": "3.12",
