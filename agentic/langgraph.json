@@ -1,12 +1,12 @@
 {
-    "dockerfile_lines": [],
-    "graphs": {
-      "critic": "./critic.py:critic",
-      "agent_coder": "./agent_coder.py:coder"
-    },
-    "env": "./.env",
-    "python_version": "3.12",
-    "dependencies": [
-      "."
-    ]
-  }
+  "dockerfile_lines": [],
+  "graphs": {
+    "critic": "./critic.py:critic",
+    "agent_coder": "./agent_coder.py:coder"
+  },
+  "env": "./.env",
+  "python_version": "3.12",
+  "dependencies": [
+    "."
+  ]
+}
