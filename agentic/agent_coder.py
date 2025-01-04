@@ -2,13 +2,14 @@
 
 # %% auto 0
 __all__ = ['human_eval_example', 'coder_prompt', 'response', 'structure_code', 'tester_prompt', 'tester_response',
-           'structure_test', 'LLM', 'coder_template', 'code', 'tester_template', 'tests', 'workflow', 'memory', 'coder',
-           'Coder', 'Tester', 'InputState', 'OverallState', 'write_program', 'get_code', 'write_tests', 'executor',
-           'correct_implementation']
+           'structure_test', 'LLM', 'coder_template', 'tester_template', 'tests', 'workflow', 'memory', 'coder',
+           'Tester', 'InputState', 'OverallState', 'write_program', 'get_function_implementation', 'write_tests',
+           'executor', 'correct_implementation']
 
 # %% ../nbs/01_agent_coder.ipynb 4
 from langgraph.graph import StateGraph, END, START, MessagesState
 from langgraph.checkpoint.memory import MemorySaver
+from langchain_core.messages import AIMessage
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import (
     ChatPromptTemplate,
@@ -22,12 +23,13 @@ from operator import add, attrgetter
 import textwrap
 import os
 from trustcall import create_extractor
+import re
 
 # %% ../nbs/01_agent_coder.ipynb 6
-# first example from the HumanEval dataset. Used as one-shot example.
+# first example from the HumanEval test dataset. Used as one-shot example.
 
 human_eval_example = {
-    "code_snippet": 'from typing import List\n\n\ndef has_close_elements(numbers: List[float], threshold: float) -> bool:\n    """ Check if in given list of numbers, are any two numbers closer to each other than\n    given threshold.\n    >>> has_close_elements([1.0, 2.0, 3.0], 0.5)\n    False\n    >>> has_close_elements([1.0, 2.8, 3.0, 4.0, 5.0, 2.0], 0.3)\n    True\n    """\n',
+    "prompt": 'from typing import List\n\n\ndef has_close_elements(numbers: List[float], threshold: float) -> bool:\n    """ Check if in given list of numbers, are any two numbers closer to each other than\n    given threshold.\n    >>> has_close_elements([1.0, 2.0, 3.0], 0.5)\n    False\n    >>> has_close_elements([1.0, 2.8, 3.0, 4.0, 5.0, 2.0], 0.3)\n    True\n    """\n',
     "entry_point": "has_close_elements",
 }
 
@@ -39,9 +41,9 @@ coder_prompt = textwrap.dedent(
     
     **Task**: As a programmer, you are required to complete the function. Use a Chain-of-Thought approach to break down the problem, create pseudocode, and then write the code in Python language. Ensure that your code is efficient, readable, and well-commented. For example: 
     
-    **Input Code Snippet**: 
+    **Input Prompt**: 
     ```python 
-    {code_snippet}
+    {prompt}
     # TODO: Implement the logic to determine if any two numbers are closer than the threshold pass 
 
     # Add your code here to complete the function
@@ -126,7 +128,7 @@ tester_prompt = textwrap.dedent(
     
     **Input Code Snippet**: 
     ```python
-    {code_snippet} 
+    {prompt} 
     ```
     **1. Basic Test Cases**: 
     - **Objective**: To verify the fundamental functionality of the `{entry_point}` function under normal conditions. 
@@ -150,9 +152,9 @@ tester_response = textwrap.dedent(
     """
     **Role**: As a tester, your task is to create and execute a series of test cases for the `{entry_point}` function. These test cases should include Basic, Edge, and Large Scale scenarios to ensure the function's robustness, reliability, and scalability.
 
-    **Input Code Snippet**:
+    **Input Prompt**:
     ```python
-    {code_snippet}
+    {prompt}
     ```
 
     **1. Basic Test Cases**:
@@ -216,20 +218,6 @@ structure_test = textwrap.dedent(
 ).strip()
 
 # %% ../nbs/01_agent_coder.ipynb 10
-class Coder(BaseModel):
-    """
-    Pydantic class where each attribute corresponds to the step the Programmer should
-    follow to solve the coding challenge.
-    """
-
-    clarify: str = Field(description="Content of the 'Understand and Clarify' section")
-    algo: str = Field(description="Content of the 'Algorithm/Method Selection' section")
-    pseudocode: str = Field(description="Content of the 'Pseudocode Creation' section")
-    code: str = Field(
-        description="Content of the 'Code Generation' section. Put only the python code between the triple quotes in this field."
-    )
-
-
 class Tester(BaseModel):
     """
     Pydantic class collecting the basic, edge cases, and large scale test cases.
@@ -261,13 +249,10 @@ coder_template = ChatPromptTemplate(
         ("user", coder_prompt),
         MessagesPlaceholder("messages", optional=True),
     ],
-    input_variables=["code_snippet", "messages"],
+    input_variables=["prompt", "messages"],
 )
 
-# Trustcall object for structuring the Programmer's output
-code = create_extractor(LLM, tools=[Coder], tool_choice="Coder", enable_inserts=True)
-
-# %% ../nbs/01_agent_coder.ipynb 15
+# %% ../nbs/01_agent_coder.ipynb 16
 # Tester's template including the instruction and a one-shot example.
 tester_template = ChatPromptTemplate(
     messages=[
@@ -275,15 +260,15 @@ tester_template = ChatPromptTemplate(
         ("ai", tester_response.format(**human_eval_example)),
         ("user", tester_prompt),
     ],
-    input_variables=["code_snippet", "entry_point"],
+    input_variables=["prompt", "entry_point"],
 )
 
 # Trustcall object for structuring the Tester's output
 tests = create_extractor(LLM, tools=[Tester], tool_choice="Tester")
 
-# %% ../nbs/01_agent_coder.ipynb 17
+# %% ../nbs/01_agent_coder.ipynb 18
 class InputState(TypedDict):
-    code_snippet: (
+    prompt: (
         str  # function header including its doc-string, i.e., the input from HumanEval
     )
     entry_point: str  # name of the function
@@ -291,13 +276,13 @@ class InputState(TypedDict):
 
 class OverallState(InputState, MessagesState):
     # Since we inherit from Message state, we have also a 'messages' channel storing the chat history
+    # list of python implementation attempts of the function
+    code: Annotated[list[str], add]
     tester: Tester  # test cases, basic, edge cases, and large scale test cases
-    # accumulates all implementation attempts
-    coder: Annotated[List[Coder], add]
     num_iterations: Annotated[int, add]  # record the number of iterations
 
-# %% ../nbs/01_agent_coder.ipynb 19
-def write_program(state: OverallState) -> OverallState:
+# %% ../nbs/01_agent_coder.ipynb 20
+def write_program(state: OverallState):
     """
     Writes the program as string. Represents the 'Programmer'.
 
@@ -311,40 +296,45 @@ def write_program(state: OverallState) -> OverallState:
     return {"messages": (coder_template | LLM).invoke(state), "num_iterations": 1}
 
 
-def get_code(state: OverallState) -> OverallState:
+def get_function_implementation(state: OverallState):
     """
-    Extracts the steps, the Programmer followed to solve the coding challenge as JSON schema
-    using a Trustcall runnable. It does it, by updating an already existing schema if it exists.
+    Extracts the implementation of a specific function from the provided messages in the state.
+
+    This function searches for Python code blocks in the content of the latest message and
+    identifies the code snippet that contains the specified entry point.
 
     Args:
-        state: The current state of the program, containing the conversation
-            history and the coder's existing implementation as string.
+        state: The current state of the agent, containing messages and the
+            entry point (function name) to be located.
 
     Returns:
-        The updated state with the structured output containing the code in the "coder" key.
+        The code snippet that contains the implementation of the function matching the
+            entry point. If no matching function is found, a KeyError or similar exception may occur.
     """
-    if state["coder"]:
-        structured = code.invoke(
-            {
-                "messages": [
-                    (
-                        "user",
-                        structure_code.format(
-                            conversation=state["messages"][-1].content
-                        ),
-                    )
-                ],
-                "existing": {"Coder": state["coder"][-1].model_dump()},
-            }
-        )
-    else:
-        structured = code.invoke(
-            structure_code.format(conversation=state["messages"][-1].content)
-        )
-    return {"coder": structured["responses"]}
+
+    def extract_python_blocks(text: str) -> list[str]:
+        """
+        Extracts the content between ```python ... ``` blocks from the given string.
+
+        Parameters:
+            text: The input string containing Python code blocks.
+
+        Returns:
+            A list of strings, each containing the content of a Python code block.
+
+        """
+        # Regex to match content between ```python ... ```
+        pattern = r"```python\n(.*?)```"
+        # Use re.DOTALL to match across newlines
+        matches = re.findall(pattern, text, re.DOTALL)
+        return matches
+
+    codes = extract_python_blocks(state["messages"][-1].content)
+    codes = [code for code in codes if f"def {state["entry_point"]}" in code]
+    return {"code": [codes.pop()] if codes else ""}
 
 
-def write_tests(state: OverallState) -> OverallState:
+def write_tests(state: OverallState):
     """
     Generates test cases for the provided state using the defined templates and parsers.
     Represents the 'Test Designer'
@@ -365,7 +355,7 @@ def write_tests(state: OverallState) -> OverallState:
     return {"tester": structured_tests["responses"][0]}
 
 
-def executor(state: OverallState) -> OverallState:
+def executor(state: OverallState):
     """
     Executes the generated code against the provided test cases and captures error messages.
     Appends them to the message history. This node represents the 'Executor'.
@@ -380,35 +370,38 @@ def executor(state: OverallState) -> OverallState:
     for test_type in ["basic", "edge", "large"]:
         for test in attrgetter(test_type)(state["tester"]):
             try:
-                exec(state["coder"][-1].code + test)
+                exec(state["code"][-1] + test)
             except Exception as e:
                 error_messages.append(
-                    (
-                        "user",
-                        textwrap.dedent(
-                            """
-                            FAILED TEST
+                    textwrap.dedent(
+                        """
+                        FAILED TEST
 
-                            Your solution failed the test 
-                                    
-                            <test>               
-                            {test}
-                            <test>
+                        Your solution failed the {test_type} test 
+                                
+                        <test>               
+                        {test}
+                        <test>
 
-                            with the error message:
+                        with the error message:
 
-                            <error>
-                            {error}
-                            <error>                
-                            """
-                        )
-                        .strip()
-                        .format(test=test, error=e),
+                        <error>
+                        {error}
+                        <error>                
+                        """
                     )
+                    .strip()
+                    .format(test_type=test_type, test=test, error=e)
                 )
-    return {"messages": error_messages}
+    return {
+        "messages": (
+            "\n=============\n".join(error_messages)
+            if error_messages
+            else "All tests passed!"
+        )
+    }
 
-# %% ../nbs/01_agent_coder.ipynb 21
+# %% ../nbs/01_agent_coder.ipynb 22
 def correct_implementation(state: OverallState) -> Literal["Programmer", "END"]:
     """
     Decides the next workflow step based on test results.
@@ -422,32 +415,31 @@ def correct_implementation(state: OverallState) -> Literal["Programmer", "END"]:
     Returns:
         "Programmer" if tests failed, or "END" if all tests passed.
     """
-    MAX_NUM_ITERATIONS = 3
-    if (
-        "FAILED TEST" in state["messages"][-1].content
-        and state["num_iterations"] <= MAX_NUM_ITERATIONS
+    MAX_NUM_ITERATIONS = 5
+    if ("All tests passed!" in state["messages"][-1].content) or (
+        state["num_iterations"] > MAX_NUM_ITERATIONS
     ):
-        return "Programmer"
-    else:
         return "END"
+    else:
+        return "Programmer"
 
-# %% ../nbs/01_agent_coder.ipynb 23
+# %% ../nbs/01_agent_coder.ipynb 24
 workflow = StateGraph(OverallState, input=InputState)
 
 # add nodes
 workflow.add_node("Programmer", write_program)
-workflow.add_node("Get Code", get_code)
+workflow.add_node("Get Code", get_function_implementation)
 workflow.add_node("Test Designer", write_tests)
 workflow.add_node("Executor", executor)
 
 # add edges
-workflow.add_edge(START, "Programmer")
 workflow.add_edge(START, "Test Designer")
+workflow.add_edge("Test Designer", "Programmer")
 workflow.add_edge("Programmer", "Get Code")
 workflow.add_edge("Get Code", "Executor")
-workflow.add_edge("Test Designer", "Executor")
 workflow.add_conditional_edges(
-    "Executor", correct_implementation, {"Programmer": "Programmer", "END": END}
+    "Executor", correct_implementation, {
+        "Programmer": "Programmer", "END": END}
 )
 
 # compile the graph
