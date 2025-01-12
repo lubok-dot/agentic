@@ -3,6 +3,7 @@ website:
     contents:
       - index.ipynb
       - 00_critic.ipynb
-      - section: utils
-        contents:
-          - utils/01_data.ipynb
+      - 01_agent_coder.ipynb
+      - 02_parallel.ipynb
+      - 03_buffer_of_thought.ipynb
+      - 04_download_bot_datasets.ipynb

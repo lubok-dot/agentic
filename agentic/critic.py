@@ -4,7 +4,7 @@
 __all__ = ['tavily_search', 'interpreter', 'TOOL_MAP', 'LLM', 'MAX_NUM_ITERATIONS', 'builder', 'critic', 'CriticState',
            'assistant', 'tools', 'tool_call']
 
-# %% ../nbs/00_critic.ipynb 3
+# %% ../nbs/00_critic.ipynb 4
 from IPython.display import Image, display
 from langgraph.graph import StateGraph, END, START
 from langchain_openai import ChatOpenAI
@@ -21,7 +21,7 @@ from typing import Literal
 import textwrap
 import os
 
-# %% ../nbs/00_critic.ipynb 5
+# %% ../nbs/00_critic.ipynb 6
 tavily_search = TavilySearchResults(
     max_results=5,
     search_depth="advanced",
@@ -34,14 +34,14 @@ interpreter = ExecPython()
 # collect tools
 TOOL_MAP = {tool.name: tool for tool in [tavily_search, interpreter]}
 
-# %% ../nbs/00_critic.ipynb 7
+# %% ../nbs/00_critic.ipynb 8
 LLM = ChatOpenAI(
     model_name="gpt-4o-mini",
     openai_api_key=os.getenv("OPENAI_API_KEY"),
     temperature=0.0,
 ).bind_tools(list(TOOL_MAP.values()), strict=True, tool_choice="auto")
 
-# %% ../nbs/00_critic.ipynb 9
+# %% ../nbs/00_critic.ipynb 10
 class CriticState(BaseModel):
     """
     Represents the state of the Critic during execution, as defined in Algorithm 1 of the referenced paper.
@@ -55,7 +55,7 @@ class CriticState(BaseModel):
         description="Maximum number a tool can be called", default=0
     )
 
-# %% ../nbs/00_critic.ipynb 13
+# %% ../nbs/00_critic.ipynb 14
 def assistant(state: CriticState) -> CriticState:
     """
     Processes the critic state by appending new results to the state history.
@@ -94,7 +94,7 @@ def tools(state: CriticState) -> CriticState:
         "num_iterations": state.num_iterations + 1,
     }
 
-# %% ../nbs/00_critic.ipynb 15
+# %% ../nbs/00_critic.ipynb 16
 MAX_NUM_ITERATIONS = 5
 
 
@@ -119,7 +119,7 @@ def tool_call(state: CriticState) -> Literal["tools", END]:
         else "tools"
     )
 
-# %% ../nbs/00_critic.ipynb 17
+# %% ../nbs/00_critic.ipynb 18
 # Graph
 builder = StateGraph(CriticState)
 
