@@ -2,7 +2,7 @@
 
 # %% auto 0
 __all__ = ['download_file_from_url', 'download_from_huggingface', 'download_gsm8k', 'download_ambignq', 'download_humaneval',
-           'download_game_of_24', 'download_python_programming_puzzles', 'download_bhb_tasks']
+           'download_game_of_24', 'download_python_programming_puzzles', 'download_bhb_tasks', 'sample_from_datasets']
 
 # %% ../nbs/04_download_bot_datasets.ipynb 3
 # load_dataset from the datasets library: Facilitates loading datasets from the Hugging Face Hub. (pip install datasets)
@@ -12,11 +12,13 @@ from typing import Optional
 import requests
 import zipfile
 import io
+import random
+import json
 
 # %% ../nbs/04_download_bot_datasets.ipynb 4
 def download_file_from_url(
     url: str,
-    filepath: Path,
+    path: Path,
 ):
     """
     Download a file from a URL.
@@ -25,7 +27,7 @@ def download_file_from_url(
     ----------
     url
         URL of the file to download.
-    filepath
+    path
         Path where the downloaded file will be saved.
 
     Returns
@@ -33,16 +35,16 @@ def download_file_from_url(
     None
         This function performs file download but does not return any value.
     """
-    if not filepath.exists():
+    if not path.exists():
         print(f"Downloading file from {url}...")
         with requests.get(url, stream=True) as r:
             r.raise_for_status()
-            with open(filepath, "wb") as f:
+            with open(path, "wb") as f:
                 for chunk in r.iter_content(chunk_size=8192):
                     f.write(chunk)
-        print(f"File downloaded and saved to {filepath}.")
+        print(f"File downloaded and saved to {path}.")
     else:
-        print(f"File {filepath} already exists. Skipping download.")
+        print(f"File {path} already exists. Skipping download.")
 
 # %% ../nbs/04_download_bot_datasets.ipynb 5
 def download_from_huggingface(data_path: Path, path: str, name: Optional[str] = None):
@@ -194,19 +196,20 @@ def download_python_programming_puzzles(path: Path):
     p3_path.mkdir(parents=True, exist_ok=True)
 
     # URL for the P3 dataset (update this URL if needed)
-    url = "https://github.com/microsoft/PythonProgrammingPuzzles/blob/main/puzzles/puzzles.json"
+    url = "https://raw.githubusercontent.com/microsoft/PythonProgrammingPuzzles/main/puzzles/puzzles.json"
 
-    download_file_from_url(url, p3_path / 'puzzles.json')
+    download_file_from_url(url, p3_path / "train.json")
 
 # %% ../nbs/04_download_bot_datasets.ipynb 17
 def download_bhb_tasks(data_path: Path):
     """
     Download specific tasks from Google's BIG-Bench Hard (BBH) dataset and save them to the specified directory.
+    Instead of downloading the entire dataset from the official repository, we download some examples from huggingface.
 
     Parameters
     ----------
     data_path : Path
-        The root directory where the BBH tasks will be saved. Each task will be stored in a subdirectory 
+        The root directory where the BBH tasks will be saved. Each task will be stored in a subdirectory
         based on its respective name.
 
     Returns
@@ -218,6 +221,78 @@ def download_bhb_tasks(data_path: Path):
         ("maveriq/bigbenchhard", "boolean_expressions"),
         ("maveriq/bigbenchhard", "causal_judgement"),
         ("maveriq/bigbenchhard", "date_understanding"),
-        ("maveriq/bigbenchhard", "word_sorting")
+        ("maveriq/bigbenchhard", "word_sorting"),
     ]:
         download_from_huggingface(data_path, path, name)
+
+# %% ../nbs/04_download_bot_datasets.ipynb 19
+def sample_from_datasets(
+    N: int, data_path: Path, path: Optional[str] = None, name: Optional[str] = None
+) -> list[dict]:
+    """
+    Randomly samples N instances from the dataset(s) stored at the specified location.
+
+    Parameters
+    ----------
+    N :
+        Number of samples to retrieve.
+    data_path :
+        Root directory containing the datasets.
+    path :
+        Path to the specific dataset within the root directory. If None, `name` must also be None.
+    name :
+        Name of the dataset ('train' or 'test'). If None, samples from both datasets in `data_path/path`.
+
+    Returns
+    -------
+    samples :
+        A list of sampled instances.
+    """
+    if path is None and name is not None:
+        raise ValueError("If 'path' is None, 'name' must also be None.")
+
+    target_path = data_path / path if path else data_path
+    target_path = target_path / name if name else target_path
+
+    # Collect all json/jsonl files to sample from
+    if target_path.exists():
+        dataset_files = [
+            file
+            for file in target_path.rglob("*")
+            if file.suffix in [".json", ".jsonl"]
+        ]
+    else:
+        raise FileNotFoundError(f"The path '{target_path}' does not exist.")
+
+    if not dataset_files:
+        raise ValueError(
+            f"No JSON or JSONL files found in the path '{target_path}'.")
+
+    # Load data from the dataset files
+    all_data = []
+    for dataset_file in dataset_files:
+        with open(dataset_file, "r", encoding="utf-8") as f:
+            if dataset_file.suffix == ".jsonl":  # JSONL: Read line by line
+                data = [json.loads(line.strip()) for line in f if line.strip()]
+            elif dataset_file.suffix == ".json":  # JSON: Use json.load()
+                data = json.load(f)
+                if not isinstance(data, list):
+                    raise ValueError(
+                        f"The JSON file '{
+                            dataset_file}' does not contain a list of records."
+                    )
+            else:
+                continue  # Skip unsupported file types
+            all_data.extend(data)
+
+    if not all_data:
+        raise ValueError("No data found in the specified datasets.")
+
+    # Randomly sample N instances
+    if len(all_data) < N:
+        raise ValueError(
+            f"Not enough data to sample {
+                N} instances. Found only {len(all_data)} records."
+        )
+
+    return random.sample(all_data, N)

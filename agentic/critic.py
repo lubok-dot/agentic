@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field
 from typing import Literal
 import textwrap
 import os
+from langchain_core.runnables import RunnableConfig
 
 # %% ../nbs/00_critic.ipynb 6
 tavily_search = TavilySearchResults(
