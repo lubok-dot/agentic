@@ -9,27 +9,31 @@ __all__ = ['problem_distiller_prompt', 'instantiate_reasoning_prompt', 'core_tas
            'template_distillation', 'dynamic_meta_buffer_update', 'update_required']
 
 # %% ../nbs/03_buffer_of_thought.ipynb 5
+from typing import Literal, Optional
+import textwrap
+import os
+import uuid
+
+
 from langgraph.graph import StateGraph, END, START, MessagesState
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.store.base import BaseStore
 from langchain_core.runnables import RunnableConfig
+from langchain_core.messages import AIMessage
 from langchain_openai import ChatOpenAI
 from langgraph.store.memory import InMemoryStore
 from langchain_core.prompts import PromptTemplate
 from pydantic import BaseModel, Field
-from typing import Literal, Optional
-import textwrap
-import os
 from trustcall import create_extractor
 from pathlib import Path
-import uuid
 from langchain.embeddings import init_embeddings
+
 from .utils import *
 
 # %% ../nbs/03_buffer_of_thought.ipynb 7
 problem_distiller_prompt = textwrap.dedent(
     """
-    ## Problem Distiller
+    ## Problem-Distiller
 
     You are a highly professional and intelligent expert in information distillation. Your role is to extract essential information from user input queries to solve problems effectively. You also transform this extracted information into a suitable format based on the type of issue.
 
@@ -80,7 +84,7 @@ instantiate_reasoning_prompt = textwrap.dedent(
 
     **Your Task:**
 
-    1. **Contextual Analysis**: Deliberately consider the context and the problem distilled from the problem distiller. Use your understanding to identify a suitable domain expert for solving the problem.
+    1. **Contextual Analysis**: Deliberately consider the context and the problem distilled from the Problem-Distiller. Use your understanding to identify a suitable domain expert for solving the problem.
 
     2. **Structure Selection**: Based on the distilled information, select one of the reasoning structures suitable for addressing the problem.
 
@@ -216,7 +220,7 @@ if populate:
 
 # %% ../nbs/03_buffer_of_thought.ipynb 25
 class BoTState(MessagesState):
-    # thought template possibly extracted from the long-term memory
+    # thought template possibly extracted from the Long-term memory
     template_text: Optional[str]
     # part of the distilled problem description. Required for similarity computations
     distilled_task: str
@@ -244,7 +248,7 @@ def problem_distiller(state: BoTState) -> dict:
         - "messages" : str
             The distilled problem description which contains the distilled task description but also a key information and problem constraints.
     """
-    # Invoke the LLM with the problem distiller prompt and the latest message
+    # Invoke the LLM with the Problem-Distiller prompt and the latest message
     distilled_task = LLM.invoke(
         [problem_distiller_prompt, state["messages"][-1]])
 
@@ -264,8 +268,8 @@ def template_retrieval(
     Retrieves the most relevant thought template for a given task using semantic search.
 
     This function conducts a semantic search between the distilled task and the task descriptions
-    of thought templates stored in the long-term memory. It selects the template with the highest
-    similarity score if it exceeds a user-defined threshold. If no suitable template is found, the 
+    of thought templates stored in the Long-term memory. It selects the template with the highest
+    similarity score if it exceeds a user-defined threshold. If no suitable template is found, the
     template field is left blank.
 
     Parameters
@@ -275,17 +279,17 @@ def template_retrieval(
     config : RunnableConfig
         Configuration object containing user-defined parameters, including the retrieval threshold.
     store : BaseStore
-        The long-term memory store where thought templates are stored and queried.
+        The Long-term memory store where thought templates are stored and queried.
 
     Returns
     -------
     dict
         A dictionary with the following key:
         - "template_text" : str or None
-            The text of the retrieved thought template if it satisfies the similarity threshold, 
+            The text of the retrieved thought template if it satisfies the similarity threshold,
             otherwise None.
     """
-    # Perform semantic search between the distilled task and templates in long-term memory
+    # Perform semantic search between the distilled task and templates in Long-term memory
     items = store.search(namespace_for_memory,
                          query=state["distilled_task"], limit=1)
     template = items.pop() if items else None
@@ -309,13 +313,13 @@ def instantiate_reasoning(state: BoTState) -> dict:
     Executes the main solution step for the BoT agent by attempting to solve the problem.
 
     This function represents the core reasoning process in the Buffer of Thoughts (BoT) framework.
-    It uses either a retrieved thought template to guide the solution or, if no template is available, 
+    It uses either a retrieved thought template to guide the solution or, if no template is available,
     applies a general solution approach as defined in the prompt.
 
     Parameters
     ----------
     state : BoTState
-        The current state of the agent, containing the task description, thought template (if retrieved), 
+        The current state of the agent, containing the task description, thought template (if retrieved),
         and other relevant information.
 
     Returns
@@ -323,7 +327,7 @@ def instantiate_reasoning(state: BoTState) -> dict:
     dict
         A dictionary with the following key:
         - "messages" : str
-            The result of the reasoning step, either guided by the thought template or generated 
+            The result of the reasoning step, either guided by the thought template or generated
             using a general approach.
     """
     if state["template_text"]:
@@ -349,31 +353,33 @@ def instantiate_reasoning(state: BoTState) -> dict:
         }
 
 # %% ../nbs/03_buffer_of_thought.ipynb 30
-def template_distillation(state: BoTState, config: RunnableConfig, store: BaseStore) -> dict:
+def template_distillation(
+    state: BoTState, config: RunnableConfig, store: BaseStore
+) -> dict:
     """
-    Distills a new thought template when no suitable template is found in the long-term memory.
+    Distills a new thought template when no suitable template is found in the Long-term memory.
 
-    This function is used when the Buffer of Thoughts (BoT) agent fails to retrieve a proper thought 
-    template. It distills a new template by analyzing the task description and the derived solution. 
-    Relevant in-task and cross-task examples (i.e., similar and diverse thought templates) are retrieved 
-    from the long-term memory to guide the derivation of a new template.
+    This function is used when the Buffer of Thoughts (BoT) agent fails to retrieve a proper thought
+    template. It distills a new template by analyzing the task description and the derived solution.
+    Relevant in-task and cross-task examples (i.e., similar and diverse thought templates) are retrieved
+    from the Long-term memory to guide the derivation of a new template.
 
     Parameters
     ----------
     state : BoTState
         The current state of the agent, containing the distilled task, derived solution, and other relevant details.
     config : RunnableConfig
-        Configuration object containing user-defined parameters, including thresholds and limits for in-task 
+        Configuration object containing user-defined parameters, including thresholds and limits for in-task
         and cross-task template retrieval.
     store : BaseStore
-        The long-term memory store where thought templates are stored and queried.
+        The Long-term memory store where thought templates are stored and queried.
 
     Returns
     -------
     dict
         A dictionary containing:
         - "messages" : str
-            The distilled thought template generated by the BoT agent, guided by the retrieved in-task 
+            The distilled thought template generated by the BoT agent, guided by the retrieved in-task
             and cross-task examples.
     """
     # Summarize the core task and solution steps
@@ -384,7 +390,7 @@ def template_distillation(state: BoTState, config: RunnableConfig, store: BaseSt
     # Generate task summary using LLM
     task_summary = LLM.invoke(core_task_summarization_msg)
 
-    # Search for relevant thought templates in the long-term memory
+    # Search for relevant thought templates in the Long-term memory
     items = store.search(
         namespace_for_memory,
         query=task_summary.content,
@@ -433,11 +439,11 @@ def dynamic_meta_buffer_update(
     state: BoTState, config: RunnableConfig, store: BaseStore
 ) -> dict:
     """
-    Structures the distilled template into predefined sections and stores it in the Long-Term Memory.
+    Structures the distilled template into predefined sections and stores it in the Long-term memory.
 
-    This function processes the distilled template by organizing it into three sections: 
-    'Task Description', 'Solution Description', and 'Thought Template', as defined by the Pydantic class. 
-    The structured template is then stored in the Long-Term Memory in JSON format.
+    This function processes the distilled template by organizing it into three sections:
+    'Task Description', 'Solution Description', and 'Thought Template', as defined by the Pydantic class.
+    The structured template is then stored in the Long-term memory in JSON format.
 
     Parameters
     ----------
@@ -446,22 +452,21 @@ def dynamic_meta_buffer_update(
     config : RunnableConfig
         Configuration object with user-defined parameters and metadata for storing the structured template.
     store : BaseStore
-        The long-term memory store where the structured template is saved in JSON format.
+        The Long-term memory store where the structured template is saved in JSON format.
 
     Returns
     -------
     dict
         A dictionary containing:
         - "messages" : str
-            A message confirming the successful update of the Meta Buffer.
+            A message confirming the successful update of the Meta-Buffer.
     """
     # Structure the distilled template into defined sections using the structure prompt
     result = structure_template_text.invoke(
         {
             "messages": [
                 structure_prompt.format(
-                    conversation=state["messages"][-1].content
-                )
+                    conversation=state["messages"][-1].content)
             ]
         }
     )
@@ -469,22 +474,22 @@ def dynamic_meta_buffer_update(
     # Extract the structured response and associated metadata
     r, rmeta = result["responses"].pop(), result["response_metadata"].pop()
 
-    # Store the structured template in the Long-Term Memory
+    # Store the structured template in the Long-term memory
     store.put(
         (user_id, long_term_memory),  # Memory namespace and user context
         rmeta.get("json_doc_id", str(uuid.uuid4())),  # Unique document ID
         r.model_dump(mode="json"),  # Save structured template as JSON
     )
 
-    # Return confirmation of Meta Buffer update
-    return {"messages": "Meta Buffer updated"}
+    # Return confirmation of Meta-Buffer update
+    return {"messages": "Meta-Buffer updated"}
 
 # %% ../nbs/03_buffer_of_thought.ipynb 33
-def update_required(state: BoTState) -> Literal["Buffer Manager", "END"]:
+def update_required(state: BoTState) -> Literal["Buffer-Manager", "END"]:
     if state["template_text"]:
         return "END"
     else:
-        return "Buffer Manager"
+        return "Buffer-Manager"
 
 # %% ../nbs/03_buffer_of_thought.ipynb 35
 meta_buffer = StateGraph(BoTState)
@@ -515,19 +520,19 @@ memory = MemorySaver()
 bot_graph = StateGraph(BoTState)
 
 # add nodes
-bot_graph.add_node("Problem Distiller", problem_distiller)
-bot_graph.add_node("Meta Buffer", meta_buffer.compile(checkpointer=memory))
+bot_graph.add_node("Problem-Distiller", problem_distiller)
+bot_graph.add_node("Meta-Buffer", meta_buffer.compile(checkpointer=memory))
 bot_graph.add_node(
-    "Buffer Manager", buffer_manager.compile(checkpointer=memory))
+    "Buffer-Manager", buffer_manager.compile(checkpointer=memory))
 
 # add edges
-bot_graph.add_edge(START, "Problem Distiller")
-bot_graph.add_edge("Problem Distiller", "Meta Buffer")
+bot_graph.add_edge(START, "Problem-Distiller")
+bot_graph.add_edge("Problem-Distiller", "Meta-Buffer")
 bot_graph.add_conditional_edges(
-    "Meta Buffer", update_required, {
-        "Buffer Manager": "Buffer Manager", "END": END}
+    "Meta-Buffer", update_required, {
+        "Buffer-Manager": "Buffer-Manager", "END": END}
 )
-bot_graph.add_edge("Buffer Manager", END)
+bot_graph.add_edge("Buffer-Manager", END)
 
 # compile graph
 bot_agent = bot_graph.compile(checkpointer=memory, store=template_store)

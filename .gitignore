@@ -15,7 +15,8 @@ tags
 *.pkg
 langgraph
 CONVENTIONS.md
-nbs/data
+nbs/data/*
+!nbs/data/thought_templates/
 references.bibtex
 agentic/requirements.txt
 

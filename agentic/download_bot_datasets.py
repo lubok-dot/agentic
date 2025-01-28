@@ -53,11 +53,11 @@ def download_from_huggingface(data_path: Path, path: str, name: Optional[str] = 
 
     Parameters
     ----------
-    data_path : Path
+    data_path
         The root directory where the dataset will be saved.
-    path : str
+    path
         The dataset identifier on Hugging Face (e.g., "openai_humaneval").
-    name :
+    name
         An additional name of the dataset. Will be used to create an extra directory. If None, no extra directory is created.
 
     Returns
@@ -149,7 +149,7 @@ def download_humaneval(data_path: Path):
 
     Parameters
     ----------
-    data_path :
+    data_path
         The directory path where the HumanEval dataset will be saved. If the directory does not exist, it will be created.
 
     Returns
@@ -166,7 +166,7 @@ def download_game_of_24(data_path: Path):
 
     Parameters
     ----------
-    path : Path
+    path
         The directory path where the Game of 24 dataset will be saved. If the directory does not exist, it will be created.
 
     Returns
@@ -183,7 +183,7 @@ def download_python_programming_puzzles(path: Path):
 
     Parameters
     ----------
-    path : Path
+    path
         The directory path where the P3 dataset will be saved. If the directory does not exist, it will be created.
 
     Returns

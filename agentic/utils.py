@@ -3,10 +3,10 @@
 # %% auto 0
 __all__ = ['extract_python_blocks', 'markdown_to_json', 'json_to_markdown']
 
-# %% ../nbs/05_utils.ipynb 3
+# %% ../nbs/05_utils.ipynb 4
 import re
 
-# %% ../nbs/05_utils.ipynb 5
+# %% ../nbs/05_utils.ipynb 6
 def extract_python_blocks(text: str) -> list[str]:
     """
     Extracts the content between ```python ... ``` blocks from the given string.
@@ -28,7 +28,7 @@ def extract_python_blocks(text: str) -> list[str]:
     matches = re.findall(pattern, text, re.DOTALL)
     return matches
 
-# %% ../nbs/05_utils.ipynb 6
+# %% ../nbs/05_utils.ipynb 7
 def markdown_to_json(markdown_text: str) -> dict:
     """
     Splits a markdown file along its ## headers and organizes content in a dictionary.

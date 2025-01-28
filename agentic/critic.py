@@ -22,7 +22,7 @@ import textwrap
 import os
 from langchain_core.runnables import RunnableConfig
 
-# %% ../nbs/00_critic.ipynb 6
+# %% ../nbs/00_critic.ipynb 8
 tavily_search = TavilySearchResults(
     max_results=5,
     search_depth="advanced",
@@ -35,14 +35,14 @@ interpreter = ExecPython()
 # collect tools
 TOOL_MAP = {tool.name: tool for tool in [tavily_search, interpreter]}
 
-# %% ../nbs/00_critic.ipynb 8
+# %% ../nbs/00_critic.ipynb 10
 LLM = ChatOpenAI(
     model_name="gpt-4o-mini",
     openai_api_key=os.getenv("OPENAI_API_KEY"),
     temperature=0.0,
 ).bind_tools(list(TOOL_MAP.values()), strict=True, tool_choice="auto")
 
-# %% ../nbs/00_critic.ipynb 10
+# %% ../nbs/00_critic.ipynb 12
 class CriticState(BaseModel):
     """
     Represents the state of the Critic during execution, as defined in Algorithm 1 of the referenced paper.
@@ -50,8 +50,10 @@ class CriticState(BaseModel):
 
     p: SystemMessage
     x: HumanMessage
-    y: list[BaseMessage] = Field(description="Chat history of the agent", default=[])
-    c: list[ToolMessage] = Field(description="Latest Tool Messages", default=[])
+    y: list[BaseMessage] = Field(
+        description="Chat history of the agent", default=[])
+    c: list[ToolMessage] = Field(
+        description="Latest Tool Messages", default=[])
     num_iterations: int = Field(
         description="Maximum number a tool can be called", default=0
     )
