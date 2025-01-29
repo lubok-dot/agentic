@@ -187,6 +187,7 @@ template_store = InMemoryStore(
     index={
         "embed": init_embeddings(model="openai:text-embedding-3-small"),
         "dims": 1536,
+        # semantic search is only conducted on the task_description field of a Thought Template
         "fields": ["task_description"],
     }
 )
