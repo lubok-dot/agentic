@@ -8,7 +8,36 @@ on:
   push:
     branches: [ "main", "master" ]
   workflow_dispatch:
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    steps: [uses: fastai/workflows/quarto-ghp@master]
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12.6'
+
+      - name: Verify Python version
+        run: python --version  # Ensure correct Python version is set
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -U nbdev
+          pip install -r requirements.txt
+          pip install -e '.[dev]'
+
+      - name: Verify dependency installation
+        run: |
+          python -c "import nbdev; print('nbdev installed')"
+          python -c "import langgraph; print('langgraph installed')"
+          python -c "import datasets; print('datasets installed')"
+
+      - name: Deploy with Quarto
+        env:
+          NBDEV_PYTHON_VERSION: "3.12.6"  # Ensure correct Python version during deployment
+        uses: fastai/workflows/quarto-ghp@master
