@@ -4,6 +4,10 @@ on: [workflow_dispatch, pull_request, push]
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}  # Use secret in the environment
+      TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+      RIZA_API_KEY: ${{ secrets.RIZA_API_KEY }}
     steps:
       - name: Check out repository (clean clone)
         uses: actions/checkout@v4
