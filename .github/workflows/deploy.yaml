@@ -16,10 +16,10 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.12
+      - name: Override Python version before Quarto deployment
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: '3.12.6'
 
       - name: Verify Python version
         run: python --version  # Ensure correct Python version is set

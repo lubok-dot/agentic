@@ -260,6 +260,7 @@ class InputState(TypedDict):
     # function header including its doc-string, i.e., the input from HumanEval
     prompt: str
     entry_point: str  # name of the function
+    __module__ = "langgraph.graph.message"  # Align module names
 
 
 class OverallState(InputState, MessagesState):
@@ -269,7 +270,7 @@ class OverallState(InputState, MessagesState):
     tester: Tester  # test cases, basic, edge cases, and large scale test cases
     num_iterations: Annotated[int, add]  # record the number of iterations
 
-# %% ../nbs/01_agent_coder.ipynb 21
+# %% ../nbs/01_agent_coder.ipynb 20
 def write_program(state: OverallState):
     """
     Writes the program as string. Represents the 'Programmer'.
@@ -370,7 +371,7 @@ def executor(state: OverallState):
         )
     }
 
-# %% ../nbs/01_agent_coder.ipynb 23
+# %% ../nbs/01_agent_coder.ipynb 22
 def correct_implementation(state: OverallState) -> Literal["Programmer", "END"]:
     """
     Decides the next workflow step based on test results.
@@ -392,7 +393,7 @@ def correct_implementation(state: OverallState) -> Literal["Programmer", "END"]:
     else:
         return "Programmer"
 
-# %% ../nbs/01_agent_coder.ipynb 25
+# %% ../nbs/01_agent_coder.ipynb 24
 workflow = StateGraph(OverallState, input=InputState)
 
 # add nodes
