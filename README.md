@@ -1,9 +1,3 @@
----
-description: Sample implementations of agentic research papers
-output-file: index.html
-title: agentic
----
-
 # Agentic Workflows with LangGraph
 
 This repository documents my experiments and learnings with **LangGraph** for implementing agentic workflows. My background in academia instilled in me a habit of understanding research papers by implementing them. As a result, this repository includes several implementations of research papers. These exercises extend beyond agentic workflows to cover various topics in mathematics and machine learning. You can find more examples on my personal [blog](https://lubok-dot.github.io/blog/).  
