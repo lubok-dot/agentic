@@ -260,12 +260,13 @@ class InputState(TypedDict):
     # function header including its doc-string, i.e., the input from HumanEval
     prompt: str
     entry_point: str  # name of the function
-    __module__ = "langgraph.graph.message"  # Align module names
 
 
-class OverallState(InputState, MessagesState):
+class OverallState(MessagesState):
     # Since we inherit from Message state, we have also a 'messages' channel storing the chat history
     # list of python implementation attempts of the function
+    prompt: str
+    entry_point: str  # name of the function
     code: Annotated[list[str], add]
     tester: Tester  # test cases, basic, edge cases, and large scale test cases
     num_iterations: Annotated[int, add]  # record the number of iterations
